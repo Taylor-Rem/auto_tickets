@@ -1,10 +1,12 @@
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException
+from general_tools.interpretation import Interpretation
 
 
 class TicketScrape:
     def __init__(self, browser):
         self.browser = browser
+        self.interpretation = Interpretation()
 
     def scrape_ticket(self):
         title = (
@@ -40,6 +42,8 @@ class TicketScrape:
         )
         if unit is not None:
             unit = unit.get_attribute("innerHTML").strip()
+        else:
+            unit = self.interpretation.extract_unit_number(title + description)
 
         resident = self.browser.find_element(
             By.XPATH,
@@ -47,6 +51,8 @@ class TicketScrape:
         )
         if resident is not None:
             resident = resident.get_attribute("innerHTML").strip()
+        else:
+            resident = self.interpretation.extract_resident_name(title + description)
 
         return [title, description, property, unit, resident]
 

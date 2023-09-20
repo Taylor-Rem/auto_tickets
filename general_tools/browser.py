@@ -194,6 +194,6 @@ class Browser(WebElementOperations, WebUtilityOperations, WebdriverResmapOperati
         self.resmap_url = "https://kingsley.residentmap.com/index.php"
         self.manage_portal_url = "https://residentmap.kmcmh.com/#/support_desk"
 
-    def get_rows(self, value):
-        table = self.wait_for_presence_of_element(By.XPATH, value)
+    def get_rows(self, by, value):
+        table = self.wait_for_presence_of_element(by, value)
         return table.find_elements(By.XPATH, ".//tr")

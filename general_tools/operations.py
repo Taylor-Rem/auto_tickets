@@ -25,6 +25,7 @@ class Operations:
         for i in range(number_of_tickets):
             link = self.support_desk_master.support_desk_retrieve_url(i)
             self.browser.click_element(link)
-            for ticket_info in self.ticket_master.scrape_ticket():
-                print(ticket_info)
+            ticket_info = self.ticket_master.scrape_ticket()
+            title, description, property, unit, resident = ticket_info
+            print(f"{title} |---| {unit}, {resident}")
             self.browser.driver.get(url)
