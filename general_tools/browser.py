@@ -10,6 +10,7 @@ from selenium.common.exceptions import (
     NoSuchWindowException,
     ElementNotInteractableException,
 )
+from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
 import re
 from config import username, password
@@ -120,6 +121,10 @@ class WebElementOperations(BrowserBase):
         else:
             print("Value not found")
             return None
+
+    def define_select(self):
+        select_element = self.find_element(By.XPATH, "//select[@name='ttid']")
+        return Select(select_element)
 
 
 class WebUtilityOperations(BrowserBase):

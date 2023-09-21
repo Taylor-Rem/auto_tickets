@@ -1,71 +1,79 @@
-import nltk
 import re
+import spacy
+import en_core_web_sm
 from nltk.tokenize import word_tokenize
 from nltk import pos_tag
 
+# Load the English NLP model
+nlp = en_core_web_sm.load()
 
-class Interpretation:
-    @staticmethod
-    def _tokenize_and_tag(text):
+
+class BaseInterpreter:
+    def __init__(self):
+        pass
+
+    def _tokenize_and_tag(self, text):
         words = word_tokenize(text)
         tagged = pos_tag(words)
         return words, tagged
 
-    @staticmethod
-    def _keyword_proximity(text, keywords):
-        words, _ = Interpretation._tokenize_and_tag(text)
-        numbers_in_text = [word for word in words if word.isdigit()]
-
-        if not numbers_in_text:
+    def _keyword_proximity(self, text, keywords, numbers):
+        words, _ = self._tokenize_and_tag(text)
+        if not numbers:
             return None
+        keyword_proximity = [
+            min(
+                abs(words.index(number) - words.index(keyword))
+                for keyword in keywords
+                if keyword in words
+            )
+            for number in numbers
+        ]
+        return numbers[keyword_proximity.index(min(keyword_proximity))]
 
-        keyword_proximity = []
-        for number in numbers_in_text:
-            proximity = float("inf")
-            for keyword in keywords:
-                if keyword in words:
-                    before_distance = abs(words.index(number) - words.index(keyword))
-                    proximity = min(proximity, before_distance)
-            keyword_proximity.append(proximity)
 
-        return numbers_in_text[keyword_proximity.index(min(keyword_proximity))]
-
-    @staticmethod
-    def determine_operation(title, description):
-        text = title + " " + description.lower()
-
-        # Check for patterns
-        if re.search(r"monthly.*taxes", text):
-            return "add_monthly_taxes"
-        if re.search(r"remove.*\$\d+\.\d{2}", text) or re.search(
-            r"delete.*\$\d+\.\d{2}", text
-        ):
-            return "delete_transaction"
-        if re.search(r"move payment from unit \d+ to \d+", text):
-            return "move_payment"
-
+class TaxInterpreter(BaseInterpreter):
+    def determine_operation(self, text):
+        keywords = ["monthly taxes", "recurring taxes", "taxes"]
+        for keyword in keywords:
+            if keyword in text and ("monthly" in keyword or "recurring" in keyword):
+                return "add_monthly_taxes"
         return None
+
+
+class NumberInterpreter(BaseInterpreter):
+    def find_nouns_in_text(self, text, limit=4):
+        words, tagged = self._tokenize_and_tag(text)
+        return [
+            word
+            for word, pos in tagged
+            if word.isdigit() and len(word) <= limit and pos in ["NN", "NNS"]
+        ]
 
     def extract_unit_number(self, text):
-        return self._keyword_proximity(text, ["unit", "space", "lot"])
+        numbers = self.find_nouns_in_text(text)
+        unit_number = self._keyword_proximity(text, ["unit", "space", "lot"], numbers)
+        return None if unit_number and len(unit_number) > 4 else unit_number
 
+    def extract_dollar_amount(self, text):
+        match = re.search(r"\$\s?(\d+(?:,\d{3})*(?:\.\d{2})?)", text)
+        return match.group(1) if match else None
+
+
+class TextInterpreter(BaseInterpreter):
     def extract_resident_name(self, text):
-        keywords = ["resident", "tenant"]
-        words, tagged = self._tokenize_and_tag(text)
-
-        for i, (word, tag) in enumerate(tagged):
-            if word.lower() in keywords and i < len(tagged) - 1:
-                potential_name = []
-                j = i + 1
-                while j < len(tagged) and tagged[j][1] in ["NNP", "NNPS"]:
-                    potential_name.append(tagged[j][0])
-                    j += 1
-                if potential_name:
-                    return " ".join(potential_name)
-
-        # If no names found next to "resident" or "tenant", return any name in the text.
-        names = [word for word, tag in tagged if tag in ["NNP", "NNPS"]]
-        if names:
-            return " ".join(names)
-
+        doc = nlp(text)
+        names = [ent.text for ent in doc.ents if ent.label_ == "PERSON"]
+        full_names = [name.split() for name in names if len(name.split()) >= 2]
+        if full_names:
+            return full_names[0][0], full_names[0][-1]
         return None
+
+    def extract_month(self, text):
+        month_pattern = r"\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\b"
+        match = re.search(month_pattern, text, re.IGNORECASE)
+        return match.group() if match else None
+
+
+class Interpretation(NumberInterpreter, TaxInterpreter, TextInterpreter):
+    pass
